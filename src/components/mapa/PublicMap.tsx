@@ -73,6 +73,8 @@ export type PublicMapProps = {
   pinMode?: boolean;
   origin?: GeoPoint | null;
   onMapClick?: (point: GeoPoint) => void;
+  onAskPin?: () => void;
+  onVeedorPoint?: (point: GeoPoint) => void;
   selectedCategorias?: readonly Categoria[];
 };
 
@@ -80,6 +82,8 @@ export function PublicMap({
   pinMode = false,
   origin = null,
   onMapClick,
+  onAskPin,
+  onVeedorPoint,
   selectedCategorias = [],
 }: PublicMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -318,6 +322,43 @@ export function PublicMap({
       {detalle ? (
         <DenunciaDetailPanel
           state={detalle}
+          veedorOrigin={origin}
+          onAskPin={onAskPin}
+          onVeedorPoint={onVeedorPoint}
+          onAtestiguoSuccess={(counts) => {
+            setDetalle((current) =>
+              current?.kind === "ready"
+                ? {
+                    kind: "ready",
+                    detalle: {
+                      ...current.detalle,
+                      atestiguos_validos: counts.atestiguos_validos,
+                      reportes_falsedad: counts.reportes_falsedad,
+                      trust_score: counts.trust_score,
+                    },
+                  }
+                : current,
+            );
+          }}
+          onReporteSuccess={(counts) => {
+            if (counts.estado === "cuarentena") {
+              setDetalle({ kind: "gone", message: YA_NO_ESTA_PUBLICO });
+              return;
+            }
+            setDetalle((current) =>
+              current?.kind === "ready"
+                ? {
+                    kind: "ready",
+                    detalle: {
+                      ...current.detalle,
+                      atestiguos_validos: counts.atestiguos_validos,
+                      reportes_falsedad: counts.reportes_falsedad,
+                      trust_score: counts.trust_score,
+                    },
+                  }
+                : current,
+            );
+          }}
           onClose={() => {
             setDetalle(null);
             writeMapDetalleId(null);

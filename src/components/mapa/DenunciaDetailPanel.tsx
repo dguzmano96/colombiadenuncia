@@ -1,7 +1,12 @@
 "use client";
 
 import { DESCARGO_LEGAL } from "@/domain/denuncia";
+import type { GeoPoint } from "@/domain/geo";
 import { YA_NO_ESTA_PUBLICO, type PublicDetalle } from "@/mapa/public-detalle";
+import type { AtestiguarCounts } from "@/veeduria/atestiguar-params";
+import type { ReportarCounts } from "@/veeduria/reportar-params";
+import { AtestiguarControl } from "./AtestiguarControl";
+import { ReportarControl } from "./ReportarControl";
 
 export type DetallePanelState =
   | { kind: "loading" }
@@ -12,9 +17,22 @@ export type DetallePanelState =
 type Props = {
   state: DetallePanelState;
   onClose: () => void;
+  veedorOrigin?: GeoPoint | null;
+  onAskPin?: () => void;
+  onVeedorPoint?: (point: GeoPoint) => void;
+  onAtestiguoSuccess?: (counts: AtestiguarCounts) => void;
+  onReporteSuccess?: (counts: ReportarCounts) => void;
 };
 
-export function DenunciaDetailPanel({ state, onClose }: Props) {
+export function DenunciaDetailPanel({
+  state,
+  onClose,
+  veedorOrigin = null,
+  onAskPin,
+  onVeedorPoint,
+  onAtestiguoSuccess,
+  onReporteSuccess,
+}: Props) {
   return (
     <aside
       className="rounded-md border border-stone-300 bg-white p-4 text-sm shadow-sm"
@@ -80,6 +98,24 @@ export function DenunciaDetailPanel({ state, onClose }: Props) {
             </div>
           ) : null}
         </dl>
+      ) : null}
+
+      {state.kind === "ready" ? (
+        <AtestiguarControl
+          denunciaId={state.detalle.id}
+          geopunto={{ lat: state.detalle.lat, lon: state.detalle.lon }}
+          veedorOrigin={veedorOrigin}
+          onAskPin={onAskPin}
+          onVeedorPoint={onVeedorPoint}
+          onSuccess={onAtestiguoSuccess}
+        />
+      ) : null}
+
+      {state.kind === "ready" ? (
+        <ReportarControl
+          denunciaId={state.detalle.id}
+          onSuccess={onReporteSuccess}
+        />
       ) : null}
 
       <p className="mt-3 border-t border-stone-200 pt-2 text-xs text-stone-600">

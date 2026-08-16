@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { GEOJSON_CACHE_CONTROL } from "@/pwa/precache";
+import {
+  GEOJSON_CACHE_CONTROL,
+  GEOJSON_CACHE_MAX_AGE_SECONDS,
+} from "@/pwa/precache";
 import { handlePublicDenuncias } from "./handle-public-denuncias";
 import type { PublicDenunciaRow } from "./public-geojson";
 
@@ -17,10 +20,17 @@ const row = (id: string, estado = "publicada"): PublicDenunciaRow => ({
 describe("handlePublicDenuncias", () => {
   it("responde FeatureCollection cacheable solo con publicadas", async () => {
     const response = await handlePublicDenuncias({
-      list: async () => [row("1"), row("2", "cuarentena"), row("3")],
+      list: async () => [
+        row("1"),
+        row("2", "cuarentena"),
+        row("3"),
+        row("4", "oculta_moderacion"),
+      ],
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe(GEOJSON_CACHE_CONTROL);
+    expect(GEOJSON_CACHE_MAX_AGE_SECONDS).toBeLessThanOrEqual(300);
+    expect(GEOJSON_CACHE_CONTROL).toMatch(/stale-while-revalidate=300/);
     expect(response.headers.get("Content-Type")).toMatch(/geo\+json/);
     const body = (await response.json()) as {
       type: string;

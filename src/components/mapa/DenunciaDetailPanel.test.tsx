@@ -4,6 +4,14 @@ import { DESCARGO_LEGAL } from "@/domain/denuncia";
 import { YA_NO_ESTA_PUBLICO } from "@/mapa/public-detalle";
 import { DenunciaDetailPanel } from "./DenunciaDetailPanel";
 
+vi.mock("./AtestiguarControl", () => ({
+  AtestiguarControl: () => <div data-testid="atestiguar-control" />,
+}));
+
+vi.mock("./ReportarControl", () => ({
+  ReportarControl: () => <div data-testid="reportar-control" />,
+}));
+
 describe("DenunciaDetailPanel", () => {
   it("muestra relato, trust, conteos, foto y descargo; no PII", () => {
     render(
@@ -14,6 +22,8 @@ describe("DenunciaDetailPanel", () => {
             id: "d1",
             categoria: "acaparamiento",
             relato: "Acaparamiento visible en un galpón del barrio centro.",
+            lat: 4.6,
+            lon: -74.08,
             trust_score: 4,
             atestiguos_validos: 6,
             reportes_falsedad: 1,
@@ -27,11 +37,14 @@ describe("DenunciaDetailPanel", () => {
     expect(
       screen.getByText(/Acaparamiento visible en un galpón/),
     ).toBeTruthy();
+    expect(screen.getByText("Trust Score")).toBeTruthy();
     expect(screen.getByText("4")).toBeTruthy();
     expect(screen.getByText("6")).toBeTruthy();
     expect(screen.getByAltText("Evidencia pública")).toBeTruthy();
     expect(screen.getByText(DESCARGO_LEGAL)).toBeTruthy();
     expect(screen.queryByText(/user agent|user_agent|\bIP\b|device/i)).toBeNull();
+    expect(screen.getByTestId("atestiguar-control")).toBeTruthy();
+    expect(screen.getByTestId("reportar-control")).toBeTruthy();
   });
 
   it("deep link viejo muestra ya no está público", () => {

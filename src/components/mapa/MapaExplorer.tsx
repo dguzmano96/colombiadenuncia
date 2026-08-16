@@ -25,6 +25,12 @@ export function MapaExplorer() {
     setPinConsultNonce((n) => n + 1);
   }, []);
 
+  const onAskPin = useCallback(() => setPinMode(true), []);
+  const onVeedorPoint = useCallback((point: GeoPoint) => {
+    setOrigin(point);
+    setPinMode(false);
+  }, []);
+
   const onCategoriasChange = useCallback((next: Categoria[]) => {
     setCategorias(next);
     writeCategoriaFilter(next);
@@ -44,13 +50,15 @@ export function MapaExplorer() {
           setOrigin(point);
           setPinMode(false);
         }}
-        onAskPin={() => setPinMode(true)}
+        onAskPin={onAskPin}
         onAbortPin={() => setPinMode(false)}
       />
       <PublicMap
         pinMode={pinMode}
         origin={origin}
         onMapClick={pinMode ? onMapClick : undefined}
+        onAskPin={onAskPin}
+        onVeedorPoint={onVeedorPoint}
         selectedCategorias={categorias}
       />
     </div>

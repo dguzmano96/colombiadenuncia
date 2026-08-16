@@ -16,6 +16,8 @@ export type PublicDetalle = {
   id: string;
   categoria: string;
   relato: string;
+  lat: number;
+  lon: number;
   trust_score: number;
   atestiguos_validos: number;
   reportes_falsedad: number;
@@ -32,11 +34,18 @@ export function toPublicDetalle(
   if (!row.id || !row.categoria) {
     return null;
   }
+  const lat = Number(row.lat);
+  const lon = Number(row.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
   const relato = (row.relato ?? "").trim();
   const detalle: PublicDetalle = {
     id: row.id,
     categoria: row.categoria,
     relato,
+    lat,
+    lon,
     trust_score: Number(row.trust_score) || 0,
     atestiguos_validos: Number(row.atestiguos_validos) || 0,
     reportes_falsedad: Number(row.reportes_falsedad) || 0,

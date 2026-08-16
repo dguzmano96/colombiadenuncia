@@ -27,6 +27,8 @@ describe("toPublicDetalle", () => {
       id: "d1",
       categoria: "reventa",
       relato: row.relato,
+      lat: 4.6,
+      lon: -74,
       trust_score: 3,
       atestiguos_validos: 5,
       reportes_falsedad: 1,
@@ -38,9 +40,12 @@ describe("toPublicDetalle", () => {
     );
   });
 
-  it("omite cuarentena y no copia campos de identidad", () => {
+  it("omite cuarentena y oculta_moderacion y no copia campos de identidad", () => {
     expect(
       toPublicDetalle({ ...row, estado: "cuarentena" }),
+    ).toBeNull();
+    expect(
+      toPublicDetalle({ ...row, estado: "oculta_moderacion" }),
     ).toBeNull();
     const extra = {
       ...row,

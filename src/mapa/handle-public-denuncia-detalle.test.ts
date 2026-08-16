@@ -34,6 +34,30 @@ describe("handlePublicDenunciaDetalle", () => {
     );
   });
 
+  it("id en cuarentena responde 404/gone sin el relato", async () => {
+    const response = await handlePublicDenunciaDetalle("pub-1", {
+      getById: async () => ({ ...publicada, estado: "cuarentena" }),
+    });
+    expect(response.status).toBe(404);
+    const raw = await response.text();
+    expect(raw).not.toContain(publicada.relato ?? "");
+    const body = JSON.parse(raw) as { error: string; detalle?: unknown };
+    expect(body.error).toBe("ya_no_esta_publico");
+    expect(body.detalle).toBeUndefined();
+  });
+
+  it("id oculta_moderacion responde 404/gone sin el relato", async () => {
+    const response = await handlePublicDenunciaDetalle("pub-1", {
+      getById: async () => ({ ...publicada, estado: "oculta_moderacion" }),
+    });
+    expect(response.status).toBe(404);
+    const raw = await response.text();
+    expect(raw).not.toContain(publicada.relato ?? "");
+    const body = JSON.parse(raw) as { error: string; detalle?: unknown };
+    expect(body.error).toBe("ya_no_esta_publico");
+    expect(body.detalle).toBeUndefined();
+  });
+
   it("id ya no público responde mensaje canónico, no error genérico", async () => {
     const response = await handlePublicDenunciaDetalle("gone", {
       getById: async () => null,

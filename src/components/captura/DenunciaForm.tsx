@@ -56,6 +56,7 @@ export function DenunciaForm() {
   const [syncErrorCodes, setSyncErrorCodes] = useState<string[] | undefined>(
     undefined,
   );
+  const [turnstileValidated, setTurnstileValidated] = useState(false);
 
   const geoLabel = useMemo(() => {
     if (!geo) return "Sin ubicación aún.";
@@ -109,14 +110,27 @@ export function DenunciaForm() {
       }
     }
 
+    function handleTurnstileValidation(e: Event) {
+      const customEvent = e as CustomEvent<{ validated?: boolean }>;
+      setTurnstileValidated(customEvent.detail?.validated === true);
+    }
+
     window.addEventListener("colombiadenuncia:syncing", handleSyncing);
     window.addEventListener("colombiadenuncia:synced", handleSynced);
     window.addEventListener("colombiadenuncia:sync-error", handleSyncError);
+    window.addEventListener(
+      "colombiadenuncia:turnstile-validation",
+      handleTurnstileValidation,
+    );
 
     return () => {
       window.removeEventListener("colombiadenuncia:syncing", handleSyncing);
       window.removeEventListener("colombiadenuncia:synced", handleSynced);
       window.removeEventListener("colombiadenuncia:sync-error", handleSyncError);
+      window.removeEventListener(
+        "colombiadenuncia:turnstile-validation",
+        handleTurnstileValidation,
+      );
     };
   }, [savedId]);
 
@@ -269,9 +283,10 @@ export function DenunciaForm() {
 
       <button
         type="submit"
-        className="rounded-md bg-amber-600 px-4 py-3 text-sm font-semibold text-white"
+        disabled={!turnstileValidated}
+        className="rounded-md bg-amber-600 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Guardar
+        Guardar reporte
       </button>
 
       {persistError ? (

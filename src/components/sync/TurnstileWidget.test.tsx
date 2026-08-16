@@ -53,6 +53,36 @@ describe("TurnstileWidget", () => {
     expect(token2).toBe("token-2");
   });
 
+  it("notifica validación correcta y revoca el gate al expirar", () => {
+    let capturedCallback: ((token: string) => void) | undefined;
+    let capturedExpiredCallback: (() => void) | undefined;
+    const validationChanges: boolean[] = [];
+
+    window.turnstile = {
+      render: (_el, opts) => {
+        capturedCallback = opts.callback;
+        capturedExpiredCallback = opts["expired-callback"];
+        return "widget-validation";
+      },
+      reset: vi.fn(),
+      getResponse: vi.fn().mockReturnValue(""),
+    };
+
+    const handleRef = { current: null as TurnstileHandle | null };
+    render(
+      <TurnstileWidget
+        siteKey="test-key"
+        handleRef={handleRef}
+        onValidationChange={(validated) => validationChanges.push(validated)}
+      />,
+    );
+
+    capturedCallback?.("token-valid");
+    capturedExpiredCallback?.();
+
+    expect(validationChanges).toEqual([true, false]);
+  });
+
   it("resuelve null por timeout si el reto no responde en 10s", async () => {
     window.turnstile = {
       render: () => "widget-hang",

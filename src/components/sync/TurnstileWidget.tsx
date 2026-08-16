@@ -30,6 +30,7 @@ declare global {
 type Props = {
   siteKey: string;
   onReady?: () => void;
+  onValidationChange?: (validated: boolean) => void;
 };
 
 export type TurnstileHandle = {
@@ -40,6 +41,7 @@ export type TurnstileHandle = {
 export function TurnstileWidget({
   siteKey,
   onReady,
+  onValidationChange,
   handleRef,
 }: Props & { handleRef: MutableRefObject<TurnstileHandle | null> }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -57,6 +59,7 @@ export function TurnstileWidget({
 
   const reset = useCallback(() => {
     tokenRef.current = null;
+    onValidationChange?.(false);
     if (widgetIdRef.current && window.turnstile) {
       try {
         window.turnstile.reset(widgetIdRef.current);
@@ -64,7 +67,7 @@ export function TurnstileWidget({
         // ignora fallos de reset si el widget aún no está montado
       }
     }
-  }, []);
+  }, [onValidationChange]);
 
   const getToken = useCallback((): Promise<string | null> => {
     if (!siteKey) {
@@ -75,6 +78,7 @@ export function TurnstileWidget({
     if (tokenRef.current) {
       const token = tokenRef.current;
       tokenRef.current = null;
+      onValidationChange?.(false);
       if (widgetIdRef.current && window.turnstile) {
         try {
           window.turnstile.reset(widgetIdRef.current);
@@ -90,6 +94,7 @@ export function TurnstileWidget({
       ? window.turnstile?.getResponse?.(widgetIdRef.current)
       : "";
     if (existing) {
+      onValidationChange?.(false);
       if (widgetIdRef.current && window.turnstile) {
         try {
           window.turnstile.reset(widgetIdRef.current);
@@ -123,7 +128,7 @@ export function TurnstileWidget({
 
       waitersRef.current.push(waiter);
     });
-  }, [siteKey]);
+  }, [onValidationChange, siteKey]);
 
   useEffect(() => {
     handleRef.current = { getToken, reset };
@@ -140,13 +145,16 @@ export function TurnstileWidget({
           sitekey: siteKey,
           callback: (token) => {
             tokenRef.current = token;
+            onValidationChange?.(Boolean(token));
             flushWaiters(token);
           },
           "expired-callback": () => {
             tokenRef.current = null;
+            onValidationChange?.(false);
           },
           "error-callback": () => {
             tokenRef.current = null;
+            onValidationChange?.(false);
             flushWaiters(null);
           },
         });
@@ -181,7 +189,7 @@ export function TurnstileWidget({
       cancelled = true;
       script.removeEventListener("load", renderWidget);
     };
-  }, [flushWaiters, onReady, siteKey]);
+  }, [flushWaiters, onReady, onValidationChange, siteKey]);
 
   if (!siteKey) {
     return null;

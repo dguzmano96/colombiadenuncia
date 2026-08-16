@@ -16,6 +16,16 @@ vi.mock("next/dynamic", () => ({
 const relatoOk =
   "Hay acaparamiento de kits de alimentos en un punto de acopio del barrio.";
 
+async function validateTurnstile() {
+  act(() => {
+    window.dispatchEvent(
+      new CustomEvent("colombiadenuncia:turnstile-validation", {
+        detail: { validated: true },
+      }),
+    );
+  });
+}
+
 describe("DenunciaForm", () => {
   it("no solicita nombre, documento, teléfono ni email", () => {
     render(<DenunciaForm />);
@@ -29,13 +39,23 @@ describe("DenunciaForm", () => {
     expect(document.querySelector('input[name="email"]')).toBeNull();
   });
 
+  it("mantiene Guardar reporte deshabilitado hasta validar Turnstile", async () => {
+    render(<DenunciaForm />);
+    const saveButton = screen.getByRole("button", { name: "Guardar reporte" });
+
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true);
+    await validateTurnstile();
+    expect((saveButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("muestra el descargo legal antes de Guardar y no crea denuncia sin checkbox", async () => {
     const user = userEvent.setup();
     render(<DenunciaForm />);
     expect(screen.getByText(/no constituye denuncia penal/i)).toBeTruthy();
     await user.selectOptions(screen.getByLabelText(/categoría/i), "acaparamiento");
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
     expect(
       await screen.findByText(/confirmar el descargo legal/i),
     ).toBeTruthy();
@@ -102,7 +122,8 @@ describe("DenunciaForm", () => {
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
     await user.click(screen.getByRole("button", { name: "Usar GPS" }));
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
     expect((await screen.findByRole("status")).textContent).toMatch(
       /pendiente de sincronizar \(pendiente_sync/i,
     );
@@ -139,7 +160,8 @@ describe("DenunciaForm", () => {
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
     await user.click(screen.getByRole("button", { name: "Usar GPS" }));
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
     const status = await screen.findByRole("status");
     expect(status.textContent).toMatch(/pendiente_sync/);
     expect(status.textContent).toMatch(/sin conexión/i);
@@ -179,7 +201,8 @@ describe("DenunciaForm", () => {
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
     await user.click(screen.getByRole("button", { name: "Usar GPS" }));
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
     expect(
       await screen.findByText(/no se pudo guardar en este dispositivo/i),
     ).toBeTruthy();
@@ -217,7 +240,8 @@ describe("DenunciaForm", () => {
     await user.selectOptions(screen.getByLabelText(/categoría/i), "acaparamiento");
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
 
     expect(await screen.findByText(/pendiente de sincronizar/i)).toBeTruthy();
 
@@ -255,7 +279,8 @@ describe("DenunciaForm", () => {
     await user.selectOptions(screen.getByLabelText(/categoría/i), "acaparamiento");
     await user.type(screen.getByLabelText(/relato/i), relatoOk);
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await validateTurnstile();
+    await user.click(screen.getByRole("button", { name: "Guardar reporte" }));
 
     expect(await screen.findByText(/pendiente de sincronizar/i)).toBeTruthy();
 

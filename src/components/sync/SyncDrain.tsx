@@ -30,6 +30,14 @@ export function SyncDrain({
   const [lastErrorDetail, setLastErrorDetail] = useState<string | null>(null);
   const [lastErrorCodes, setLastErrorCodes] = useState<string[] | undefined>(undefined);
 
+  const handleTurnstileValidation = useCallback((validated: boolean) => {
+    window.dispatchEvent(
+      new CustomEvent("colombiadenuncia:turnstile-validation", {
+        detail: { validated },
+      }),
+    );
+  }, []);
+
   const refreshQueueStatus = useCallback(async () => {
     const queue = await listSyncQueue();
     setPendingCount(queue.length);
@@ -132,7 +140,11 @@ export function SyncDrain({
 
   return (
     <section className="mx-auto w-full max-w-md px-4 pt-4" aria-live="polite">
-      <TurnstileWidget siteKey={siteKey} handleRef={handleRef} />
+      <TurnstileWidget
+        siteKey={siteKey}
+        handleRef={handleRef}
+        onValidationChange={handleTurnstileValidation}
+      />
 
       {syncing && pendingCount > 0 ? (
         <div className="mt-2 rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-900 flex items-center gap-2">

@@ -103,6 +103,13 @@ async function drainOne(
 
   if (result.ok) {
     await markDenunciaEnviada(item.denunciaId, deps.db);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("colombiadenuncia:synced", {
+          detail: { denunciaId: item.denunciaId },
+        }),
+      );
+    }
     return;
   }
 

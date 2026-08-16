@@ -48,12 +48,19 @@ export function SyncDrain({
     function onOnline() {
       void runDrain();
     }
+    function onSyncRequested() {
+      void runDrain();
+    }
     window.addEventListener("online", onOnline);
+    window.addEventListener("colombiadenuncia:sync", onSyncRequested);
     if (navigator.onLine) {
       void runDrain();
     }
     void refreshPaused();
-    return () => window.removeEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("colombiadenuncia:sync", onSyncRequested);
+    };
   }, [refreshPaused, runDrain]);
 
   async function handleManualRetry() {

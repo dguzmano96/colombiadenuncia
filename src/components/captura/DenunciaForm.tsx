@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CATEGORIAS,
   DESCARGO_LEGAL,
@@ -62,6 +62,17 @@ export function DenunciaForm() {
     setGpsError(result.message);
   }
 
+  useEffect(() => {
+    function handleSynced(e: Event) {
+      const customEvent = e as CustomEvent<{ denunciaId: string }>;
+      if (customEvent.detail?.denunciaId === savedId) {
+        setSavedEstado("enviada");
+      }
+    }
+    window.addEventListener("colombiadenuncia:synced", handleSynced);
+    return () => window.removeEventListener("colombiadenuncia:synced", handleSynced);
+  }, [savedId]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSavedId(null);
@@ -85,6 +96,10 @@ export function DenunciaForm() {
     setIssues([]);
     setSavedId(result.denuncia.id);
     setSavedEstado(result.denuncia.estado);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("colombiadenuncia:sync"));
+    }
   }
 
   return (
@@ -201,14 +216,40 @@ export function DenunciaForm() {
       ) : null}
 
       {savedId && savedEstado ? (
-        <p role="status" className="text-sm text-green-800">
-          Denuncia {savedId} guardada en este dispositivo. Estado pendiente de
-          sincronizar ({savedEstado}
-          {typeof navigator !== "undefined" && navigator.onLine === false
-            ? "; sin conexión"
-            : ""}
-          ). Se enviará cuando haya red.
-        </p>
+        <div
+          role="status"
+          className={`rounded-md p-3 text-sm ${
+            savedEstado === "enviada"
+              ? "bg-green-50 text-green-900 border border-green-200"
+              : "bg-amber-50 text-amber-900 border border-amber-200"
+          }`}
+        >
+          {savedEstado === "enviada" ? (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">
+                ✅ ¡Denuncia sincronizada y publicada con éxito!
+              </p>
+              <p className="text-xs text-stone-700">
+                Tu reporte ya está visible para toda la comunidad en el mapa.
+              </p>
+              <a
+                href="/mapa"
+                className="inline-block self-start rounded bg-green-700 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-green-800"
+              >
+                Ver en el mapa →
+              </a>
+            </div>
+          ) : (
+            <p>
+              Denuncia {savedId} guardada en este dispositivo. Estado pendiente de
+              sincronizar ({savedEstado}
+              {typeof navigator !== "undefined" && navigator.onLine === false
+                ? "; sin conexión"
+                : ""}
+              ). Se enviará cuando haya red.
+            </p>
+          )}
+        </div>
       ) : null}
     </form>
   );

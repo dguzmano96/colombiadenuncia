@@ -2,6 +2,7 @@ import {
   createDenunciaLocal,
   ESTADO_ENVIADA,
   ESTADO_ERROR_SYNC,
+  ESTADO_PENDIENTE_SYNC,
   type DenunciaInput,
   type DenunciaLocal,
   type ValidationIssue,
@@ -146,13 +147,25 @@ export async function markDenunciaEnviada(
   });
 }
 
+export type SyncFailureDetails = {
+  intentos: number;
+  proxima_at: number;
+  lastError?: string;
+  lastErrorCode?: string;
+  lastErrorDetail?: string;
+};
+
 export async function applySyncFailure(
   denunciaId: string,
-  next: { intentos: number; proxima_at: number },
+  next: SyncFailureDetails,
   db: ColombiaDenunciaDB = getDb(),
 ): Promise<void> {
   await db.transaction("rw", db.denuncias, db.syncQueue, async () => {
-    await db.denuncias.update(denunciaId, { estado: ESTADO_ERROR_SYNC });
+    await db.denuncias.update(denunciaId, {
+      estado: ESTADO_ERROR_SYNC,
+      lastError: next.lastError,
+      lastErrorDetail: next.lastErrorDetail,
+    });
     const existing = await db.syncQueue
       .where("denunciaId")
       .equals(denunciaId)
@@ -169,10 +182,45 @@ export async function resumePausedQueue(
 ): Promise<void> {
   const items = await db.syncQueue.toArray();
   for (const item of items) {
-    if (item.id == null || item.intentos < MAX_SYNC_ATTEMPTS) continue;
+    if (item.id == null) continue;
     await db.syncQueue.update(item.id, {
       intentos: 0,
       proxima_at: now(),
+      lastError: undefined,
+      lastErrorCode: undefined,
+      lastErrorDetail: undefined,
+    });
+    await db.denuncias.update(item.denunciaId, {
+      estado: ESTADO_PENDIENTE_SYNC,
+      lastError: undefined,
+      lastErrorDetail: undefined,
     });
   }
+}
+
+export async function retryDenunciaSync(
+  denunciaId: string,
+  db: ColombiaDenunciaDB = getDb(),
+  now: () => number = Date.now,
+): Promise<void> {
+  await db.transaction("rw", db.denuncias, db.syncQueue, async () => {
+    await db.denuncias.update(denunciaId, {
+      estado: ESTADO_PENDIENTE_SYNC,
+      lastError: undefined,
+      lastErrorDetail: undefined,
+    });
+    const existing = await db.syncQueue
+      .where("denunciaId")
+      .equals(denunciaId)
+      .first();
+    if (existing?.id != null) {
+      await db.syncQueue.update(existing.id, {
+        intentos: 0,
+        proxima_at: now(),
+        lastError: undefined,
+        lastErrorCode: undefined,
+        lastErrorDetail: undefined,
+      });
+    }
+  });
 }

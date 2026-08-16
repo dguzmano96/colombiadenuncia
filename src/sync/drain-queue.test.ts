@@ -25,7 +25,7 @@ describe("drainSyncQueue", () => {
     await db.delete();
   });
 
-  it("tras 2xx marca enviada y saca el ítem de la cola", async () => {
+  it("tras 2xx marca enviada, resetea Turnstile y emite evento synced", async () => {
     await saveDenuncia(
       {
         categoria: "acaparamiento",
@@ -36,6 +36,11 @@ describe("drainSyncQueue", () => {
       { db, idFactory: () => "den-ok" },
     );
     const reset = vi.fn();
+    const syncedListener = vi.fn();
+    const syncingListener = vi.fn();
+    window.addEventListener("colombiadenuncia:synced", syncedListener);
+    window.addEventListener("colombiadenuncia:syncing", syncingListener);
+
     await drainSyncQueue({
       db,
       isOnline: () => true,
@@ -43,12 +48,19 @@ describe("drainSyncQueue", () => {
       resetTurnstile: reset,
       postSync: async () => ({ ok: true }),
     });
+
     const stored = await getDenunciaRecord("den-ok", db);
     expect(stored?.estado).toBe(ESTADO_ENVIADA);
     expect(await listSyncQueue(db)).toHaveLength(0);
+    expect(reset).toHaveBeenCalled();
+    expect(syncingListener).toHaveBeenCalled();
+    expect(syncedListener).toHaveBeenCalled();
+
+    window.removeEventListener("colombiadenuncia:synced", syncedListener);
+    window.removeEventListener("colombiadenuncia:syncing", syncingListener);
   });
 
-  it("token inválido deja error_sync, nuevo token (reset) y backoff 5s", async () => {
+  it("token inválido deja error_sync, guarda error y emite sync-error", async () => {
     const now = 10_000;
     await saveDenuncia(
       {
@@ -60,6 +72,9 @@ describe("drainSyncQueue", () => {
       { db, idFactory: () => "den-bad", now: () => now },
     );
     const reset = vi.fn();
+    const errorListener = vi.fn();
+    window.addEventListener("colombiadenuncia:sync-error", errorListener);
+
     await drainSyncQueue({
       db,
       now: () => now,
@@ -70,14 +85,46 @@ describe("drainSyncQueue", () => {
         ok: false,
         error: "timeout-or-duplicate",
         errorCodes: ["timeout-or-duplicate"],
+        message: "Token expirado",
       }),
     });
+
     const stored = await getDenunciaRecord("den-bad", db);
     expect(stored?.estado).toBe(ESTADO_ERROR_SYNC);
+    expect(stored?.lastError).toBe("timeout-or-duplicate");
     const queue = await listSyncQueue(db);
     expect(queue[0]?.intentos).toBe(1);
+    expect(queue[0]?.lastError).toBe("timeout-or-duplicate");
+    expect(queue[0]?.lastErrorCode).toBe("timeout-or-duplicate");
+    expect(queue[0]?.lastErrorDetail).toBe("Token expirado");
     expect(queue[0]?.proxima_at).toBe(now + 5_000);
     expect(reset).toHaveBeenCalled();
+    expect(errorListener).toHaveBeenCalled();
+
+    window.removeEventListener("colombiadenuncia:sync-error", errorListener);
+  });
+
+  it("falla si no se puede obtener token de Turnstile", async () => {
+    await saveDenuncia(
+      {
+        categoria: "acaparamiento",
+        relato: relatoOk,
+        geo: toGeoPoint(4.6, -74.08),
+        descargoAceptado: true,
+      },
+      { db, idFactory: () => "den-no-token" },
+    );
+
+    await drainSyncQueue({
+      db,
+      isOnline: () => true,
+      getTurnstileToken: async () => null,
+      postSync: async () => ({ ok: true }),
+    });
+
+    const stored = await getDenunciaRecord("den-no-token", db);
+    expect(stored?.estado).toBe(ESTADO_ERROR_SYNC);
+    expect(stored?.lastError).toBe("turnstile_missing");
   });
 
   it("no drena si no hay red", async () => {

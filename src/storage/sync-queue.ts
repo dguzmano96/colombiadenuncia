@@ -17,6 +17,9 @@ export type SyncQueueItem = {
   payload: SyncQueuePayload;
   intentos: number;
   proxima_at: number;
+  lastError?: string;
+  lastErrorCode?: string;
+  lastErrorDetail?: string;
 };
 
 export function createUpsertQueueItem(

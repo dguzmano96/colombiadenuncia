@@ -5,6 +5,7 @@ import type { MutableRefObject } from "react";
 
 const TURNSTILE_SCRIPT =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const TOKEN_TIMEOUT_MS = 10_000;
 
 type TurnstileApi = {
   render: (
@@ -49,13 +50,19 @@ export function TurnstileWidget({
   const flushWaiters = useCallback((token: string | null) => {
     const waiters = waitersRef.current;
     waitersRef.current = [];
-    for (const waiter of waiters) waiter(token);
+    for (const waiter of waiters) {
+      waiter(token);
+    }
   }, []);
 
   const reset = useCallback(() => {
     tokenRef.current = null;
     if (widgetIdRef.current && window.turnstile) {
-      window.turnstile.reset(widgetIdRef.current);
+      try {
+        window.turnstile.reset(widgetIdRef.current);
+      } catch {
+        // ignora fallos de reset si el widget aún no está montado
+      }
     }
   }, []);
 
@@ -63,18 +70,58 @@ export function TurnstileWidget({
     if (!siteKey) {
       return Promise.resolve(null);
     }
+
+    // Token en memoria listo: consumirlo (token de un solo uso) y pedir background reset
     if (tokenRef.current) {
-      return Promise.resolve(tokenRef.current);
+      const token = tokenRef.current;
+      tokenRef.current = null;
+      if (widgetIdRef.current && window.turnstile) {
+        try {
+          window.turnstile.reset(widgetIdRef.current);
+        } catch {
+          // ignora
+        }
+      }
+      return Promise.resolve(token);
     }
+
+    // Token actual en el widget
     const existing = widgetIdRef.current
       ? window.turnstile?.getResponse?.(widgetIdRef.current)
       : "";
     if (existing) {
-      tokenRef.current = existing;
+      if (widgetIdRef.current && window.turnstile) {
+        try {
+          window.turnstile.reset(widgetIdRef.current);
+        } catch {
+          // ignora
+        }
+      }
       return Promise.resolve(existing);
     }
+
+    // Forzar ejecución si hay widget disponible
+    if (widgetIdRef.current && window.turnstile) {
+      try {
+        window.turnstile.reset(widgetIdRef.current);
+      } catch {
+        // ignora
+      }
+    }
+
+    // Esperar token con timeout de seguridad para no colgar promesas
     return new Promise((resolve) => {
-      waitersRef.current.push(resolve);
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const waiter = (token: string | null) => {
+        if (timer) clearTimeout(timer);
+        resolve(token);
+      };
+      timer = setTimeout(() => {
+        waitersRef.current = waitersRef.current.filter((w) => w !== waiter);
+        resolve(null);
+      }, TOKEN_TIMEOUT_MS);
+
+      waitersRef.current.push(waiter);
     });
   }, [siteKey]);
 
@@ -88,21 +135,25 @@ export function TurnstileWidget({
     function renderWidget() {
       if (cancelled || !containerRef.current || !window.turnstile) return;
       if (widgetIdRef.current) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        callback: (token) => {
-          tokenRef.current = token;
-          flushWaiters(token);
-        },
-        "expired-callback": () => {
-          tokenRef.current = null;
-        },
-        "error-callback": () => {
-          tokenRef.current = null;
-          flushWaiters(null);
-        },
-      });
-      onReady?.();
+      try {
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          callback: (token) => {
+            tokenRef.current = token;
+            flushWaiters(token);
+          },
+          "expired-callback": () => {
+            tokenRef.current = null;
+          },
+          "error-callback": () => {
+            tokenRef.current = null;
+            flushWaiters(null);
+          },
+        });
+        onReady?.();
+      } catch {
+        flushWaiters(null);
+      }
     }
 
     if (window.turnstile) {

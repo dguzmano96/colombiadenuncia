@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DenunciaForm } from "./DenunciaForm";
 import * as denunciaStore from "@/storage/local-denuncia-store";
@@ -198,5 +198,89 @@ describe("DenunciaForm", () => {
     expect(relato.disabled).toBe(false);
     await user.type(relato, "texto durante encode");
     expect(relato.value).toBe("texto durante encode");
+  });
+
+  it("reacciona al evento synced cambiando a éxito y mostrando enlace al mapa", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(denunciaStore, "saveDenuncia").mockResolvedValue({
+      ok: true,
+      denuncia: {
+        id: "den-react-1",
+        categoria: "acaparamiento",
+        relato: relatoOk,
+        lat: 4.6,
+        lon: -74.08,
+        estado: "pendiente_sync",
+      },
+    });
+    render(<DenunciaForm />);
+    await user.selectOptions(screen.getByLabelText(/categoría/i), "acaparamiento");
+    await user.type(screen.getByLabelText(/relato/i), relatoOk);
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText(/pendiente de sincronizar/i)).toBeTruthy();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("colombiadenuncia:synced", {
+          detail: { denunciaId: "den-react-1" },
+        }),
+      );
+    });
+
+    expect(
+      await screen.findByText(/¡Denuncia sincronizada y publicada con éxito!/i),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Ver en el mapa/i })).toBeTruthy();
+    vi.restoreAllMocks();
+  });
+
+  it("reacciona al evento sync-error mostrando alerta con detalle del error y botón reintentar", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(denunciaStore, "saveDenuncia").mockResolvedValue({
+      ok: true,
+      denuncia: {
+        id: "den-react-err",
+        categoria: "acaparamiento",
+        relato: relatoOk,
+        lat: 4.6,
+        lon: -74.08,
+        estado: "pendiente_sync",
+      },
+    });
+    const retrySpy = vi.spyOn(denunciaStore, "retryDenunciaSync").mockResolvedValue(undefined);
+
+    render(<DenunciaForm />);
+    await user.selectOptions(screen.getByLabelText(/categoría/i), "acaparamiento");
+    await user.type(screen.getByLabelText(/relato/i), relatoOk);
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText(/pendiente de sincronizar/i)).toBeTruthy();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("colombiadenuncia:sync-error", {
+          detail: {
+            denunciaId: "den-react-err",
+            error: "server_misconfigured",
+            message: "Falta configurar TURNSTILE_SECRET_KEY.",
+          },
+        }),
+      );
+    });
+
+    expect(
+      await screen.findByText(/Error al sincronizar la denuncia/i),
+    ).toBeTruthy();
+    expect(screen.getByText(/TURNSTILE_SECRET_KEY/i)).toBeTruthy();
+
+    const retryBtn = screen.getByRole("button", {
+      name: /Reintentar sincronización ahora/i,
+    });
+    await user.click(retryBtn);
+    expect(retrySpy).toHaveBeenCalledWith("den-react-err");
+    vi.restoreAllMocks();
   });
 });

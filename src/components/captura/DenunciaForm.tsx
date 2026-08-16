@@ -11,7 +11,12 @@ import {
 import type { GeoPoint } from "@/domain/geo";
 import { FotoField } from "@/components/captura/FotoField";
 import { requestCurrentPosition } from "@/lib/request-current-position";
-import { saveDenuncia, isPersistError } from "@/storage/local-denuncia-store";
+import {
+  saveDenuncia,
+  isPersistError,
+  retryDenunciaSync,
+} from "@/storage/local-denuncia-store";
+import { formatSyncError } from "@/sync/sync-error-messages";
 
 const PinMap = dynamic(
   () => import("@/components/captura/PinMap").then((mod) => mod.PinMap),
@@ -45,6 +50,13 @@ export function DenunciaForm() {
   const [persistError, setPersistError] = useState<string | null>(null);
   const [foto, setFoto] = useState<Blob | null>(null);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncErrorDetail, setSyncErrorDetail] = useState<string | null>(null);
+  const [syncErrorCodes, setSyncErrorCodes] = useState<string[] | undefined>(
+    undefined,
+  );
+
   const geoLabel = useMemo(() => {
     if (!geo) return "Sin ubicación aún.";
     return `Lat ${geo.lat.toFixed(5)}, Lon ${geo.lon.toFixed(5)} (WGS84)`;
@@ -63,21 +75,74 @@ export function DenunciaForm() {
   }
 
   useEffect(() => {
+    function handleSyncing(e: Event) {
+      const customEvent = e as CustomEvent<{ denunciaId?: string }>;
+      if (!savedId || customEvent.detail?.denunciaId === savedId) {
+        setIsSyncing(true);
+      }
+    }
+
     function handleSynced(e: Event) {
       const customEvent = e as CustomEvent<{ denunciaId: string }>;
       if (customEvent.detail?.denunciaId === savedId) {
         setSavedEstado("enviada");
+        setIsSyncing(false);
+        setSyncError(null);
+        setSyncErrorDetail(null);
+        setSyncErrorCodes(undefined);
       }
     }
+
+    function handleSyncError(e: Event) {
+      const customEvent = e as CustomEvent<{
+        denunciaId: string;
+        error: string;
+        errorCodes?: string[];
+        message?: string;
+      }>;
+      if (customEvent.detail?.denunciaId === savedId) {
+        setSavedEstado("error_sync");
+        setIsSyncing(false);
+        setSyncError(customEvent.detail.error);
+        setSyncErrorDetail(customEvent.detail.message ?? null);
+        setSyncErrorCodes(customEvent.detail.errorCodes);
+      }
+    }
+
+    window.addEventListener("colombiadenuncia:syncing", handleSyncing);
     window.addEventListener("colombiadenuncia:synced", handleSynced);
-    return () => window.removeEventListener("colombiadenuncia:synced", handleSynced);
+    window.addEventListener("colombiadenuncia:sync-error", handleSyncError);
+
+    return () => {
+      window.removeEventListener("colombiadenuncia:syncing", handleSyncing);
+      window.removeEventListener("colombiadenuncia:synced", handleSynced);
+      window.removeEventListener("colombiadenuncia:sync-error", handleSyncError);
+    };
   }, [savedId]);
+
+  async function handleRetrySync() {
+    if (!savedId) return;
+    setSavedEstado("pendiente_sync");
+    setIsSyncing(true);
+    setSyncError(null);
+    setSyncErrorDetail(null);
+    setSyncErrorCodes(undefined);
+    await retryDenunciaSync(savedId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("colombiadenuncia:sync"));
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSavedId(null);
     setSavedEstado(null);
     setPersistError(null);
+    setSyncError(null);
+    setSyncErrorDetail(null);
+    setSyncErrorCodes(undefined);
+    setIsSyncing(false);
+
     const result = await saveDenuncia({
       categoria,
       relato,
@@ -217,11 +282,13 @@ export function DenunciaForm() {
 
       {savedId && savedEstado ? (
         <div
-          role="status"
+          role={savedEstado === "error_sync" ? "alert" : "status"}
           className={`rounded-md p-3 text-sm ${
             savedEstado === "enviada"
               ? "bg-green-50 text-green-900 border border-green-200"
-              : "bg-amber-50 text-amber-900 border border-amber-200"
+              : savedEstado === "error_sync"
+                ? "bg-red-50 text-red-900 border border-red-200"
+                : "bg-amber-50 text-amber-900 border border-amber-200"
           }`}
         >
           {savedEstado === "enviada" ? (
@@ -239,15 +306,54 @@ export function DenunciaForm() {
                 Ver en el mapa →
               </a>
             </div>
+          ) : savedEstado === "error_sync" ? (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">
+                ⚠️ Error al sincronizar la denuncia
+              </p>
+              <p className="text-xs text-red-800">
+                {formatSyncError(syncError, syncErrorDetail, syncErrorCodes)}
+              </p>
+              <p className="text-xs text-stone-600">
+                Tu denuncia está guardada en este dispositivo (ID: {savedId}). Puedes reintentar cuando quieras.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleRetrySync()}
+                className="self-start rounded bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800"
+              >
+                Reintentar sincronización ahora
+              </button>
+            </div>
           ) : (
-            <p>
-              Denuncia {savedId} guardada en este dispositivo. Estado pendiente de
-              sincronizar ({savedEstado}
-              {typeof navigator !== "undefined" && navigator.onLine === false
-                ? "; sin conexión"
-                : ""}
-              ). Se enviará cuando haya red.
-            </p>
+            <div className="flex flex-col gap-2">
+              {isSyncing ? (
+                <p className="flex items-center gap-2 font-medium">
+                  <span className="inline-block animate-spin">⏳</span>
+                  <span>Sincronizando denuncia con el servidor…</span>
+                </p>
+              ) : (
+                <p>
+                  Denuncia {savedId} guardada en este dispositivo. Estado pendiente de
+                  sincronizar ({savedEstado}
+                  {typeof navigator !== "undefined" && navigator.onLine === false
+                    ? "; sin conexión"
+                    : ""}
+                  ). Se enviará cuando haya red.
+                </p>
+              )}
+              {typeof navigator !== "undefined" &&
+              navigator.onLine !== false &&
+              !isSyncing ? (
+                <button
+                  type="button"
+                  onClick={() => void handleRetrySync()}
+                  className="self-start rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+                >
+                  Sincronizar ahora
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       ) : null}

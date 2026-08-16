@@ -17,6 +17,7 @@ export type SyncPostResult =
       ok: false;
       error: string;
       errorCodes?: string[];
+      message?: string;
     };
 
 export type DrainDeps = {
@@ -47,23 +48,36 @@ export async function postSyncDenuncia(input: {
       "evidencia.webp",
     );
   }
-  const response = await fetch("/api/sync/denuncia", {
-    method: "POST",
-    body: form,
-  });
-  const body = (await response.json().catch(() => ({}))) as {
-    ok?: boolean;
-    error?: string;
-    errorCodes?: string[];
-  };
-  if (response.ok && body.ok) {
-    return { ok: true };
+  try {
+    const response = await fetch("/api/sync/denuncia", {
+      method: "POST",
+      body: form,
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      errorCodes?: string[];
+      message?: string;
+    };
+    if (response.ok && body.ok) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: body.error ?? "sync_failed",
+      errorCodes: body.errorCodes,
+      message: body.message,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: "network_error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Error de red al conectar con el servidor",
+    };
   }
-  return {
-    ok: false,
-    error: body.error ?? "sync_failed",
-    errorCodes: body.errorCodes,
-  };
 }
 
 export async function drainSyncQueue(deps: DrainDeps): Promise<void> {
@@ -83,9 +97,23 @@ async function drainOne(
   item: SyncQueueItem,
   deps: DrainDeps & { db: ColombiaDenunciaDB; now: () => number },
 ): Promise<void> {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("colombiadenuncia:syncing", {
+        detail: { denunciaId: item.denunciaId },
+      }),
+    );
+  }
+
   const token = await deps.getTurnstileToken();
   if (!token) {
-    await failItem(item, deps);
+    await failItem(
+      item,
+      deps,
+      "turnstile_missing",
+      undefined,
+      "No se pudo obtener el token de verificación Turnstile.",
+    );
     return;
   }
 
@@ -101,6 +129,9 @@ async function drainOne(
     foto,
   });
 
+  // Turnstile token is single-use; reset after each post
+  deps.resetTurnstile?.();
+
   if (result.ok) {
     await markDenunciaEnviada(item.denunciaId, deps.db);
     if (typeof window !== "undefined") {
@@ -113,15 +144,47 @@ async function drainOne(
     return;
   }
 
-  await failItem(item, deps);
+  await failItem(
+    item,
+    deps,
+    result.error,
+    result.errorCodes,
+    result.message,
+  );
 }
 
 async function failItem(
   item: SyncQueueItem,
   deps: DrainDeps & { db: ColombiaDenunciaDB; now: () => number },
+  error = "sync_failed",
+  errorCodes?: string[],
+  message?: string,
 ): Promise<void> {
   const intentos = item.intentos + 1;
   const proxima_at = nextProximaAt(intentos, deps.now());
-  await applySyncFailure(item.denunciaId, { intentos, proxima_at }, deps.db);
+  await applySyncFailure(
+    item.denunciaId,
+    {
+      intentos,
+      proxima_at,
+      lastError: error,
+      lastErrorCode: errorCodes?.[0],
+      lastErrorDetail: message,
+    },
+    deps.db,
+  );
   deps.resetTurnstile?.();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("colombiadenuncia:sync-error", {
+        detail: {
+          denunciaId: item.denunciaId,
+          error,
+          errorCodes,
+          message,
+          intentos,
+        },
+      }),
+    );
+  }
 }

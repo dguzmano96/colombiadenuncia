@@ -23,16 +23,16 @@ export type PublishStorage = {
     path: string,
     bytes: ArrayBuffer,
     mime: string,
-  ) => Promise<{ ok: true } | { ok: false; status: number }>;
+  ) => Promise<{ ok: true } | { ok: false; status: number; detail?: string }>;
   insert: (
     row: DenunciaInsertRow,
-  ) => Promise<{ ok: true; id: string } | { ok: false }>;
+  ) => Promise<{ ok: true; id: string } | { ok: false; detail?: string }>;
   remove?: (path: string) => Promise<void>;
 };
 
 export type PublishResult =
   | { ok: true; id: string; photoPath: string | null }
-  | { ok: false; reason: "storage" | "insert"; status?: number };
+  | { ok: false; reason: "storage" | "insert"; status?: number; detail?: string };
 
 function extensionFor(mime: string | undefined): string {
   if (mime === "image/jpeg") return "jpg";
@@ -59,7 +59,12 @@ export async function publishDenuncia(
       input.fotoMime ?? "image/webp",
     );
     if (!uploaded.ok) {
-      return { ok: false, reason: "storage", status: uploaded.status };
+      return {
+        ok: false,
+        reason: "storage",
+        status: uploaded.status,
+        detail: uploaded.detail,
+      };
     }
   }
 
@@ -78,7 +83,7 @@ export async function publishDenuncia(
     if (photoPath) {
       await storage.remove?.(photoPath);
     }
-    return { ok: false, reason: "insert" };
+    return { ok: false, reason: "insert", detail: inserted.detail };
   }
 
   return { ok: true, id: inserted.id, photoPath };

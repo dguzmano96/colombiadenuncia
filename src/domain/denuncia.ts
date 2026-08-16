@@ -38,6 +38,8 @@ export type DenunciaLocal = {
   lat: number;
   lon: number;
   estado: EstadoLocal;
+  lastError?: string;
+  lastErrorDetail?: string;
 };
 
 export type ValidationIssue = {

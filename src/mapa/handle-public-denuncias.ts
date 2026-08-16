@@ -31,12 +31,19 @@ export async function handlePublicDenuncias(
   try {
     const rows = await deps.list();
     return geojsonResponse(
-      toPublicFeatureCollection(rows, deps.supabaseUrl),
+      toPublicFeatureCollection(rows ?? [], deps.supabaseUrl),
       200,
     );
-  } catch {
+  } catch (err) {
     return new Response(
-      JSON.stringify({ ok: false, error: "geojson_unavailable" }),
+      JSON.stringify({
+        ok: false,
+        error: "geojson_unavailable",
+        message:
+          err instanceof Error
+            ? err.message
+            : "No se pudieron consultar las denuncias públicas.",
+      }),
       {
         status: 502,
         headers: {

@@ -1,0 +1,16 @@
+-- HU-007 AC-4 — laboratorio EXPLAIN (NO es evidencia de producción).
+-- Sin proyecto Supabase live en esta implementación: no hay plan real que citar.
+-- Correr en Studio/psql cuando exista seed ≥1000 puntos publicados.
+--
+-- Plan esperado (docs PostGIS 3.5 ST_DWithin: "bounding box comparison that
+-- makes use of any indexes"): Index Scan o Bitmap Index Scan sobre
+-- public.denuncias_location_gix (migración HU-004). No Seq Scan completo
+-- de public.denuncias como plan esperado.
+--
+-- Seed BDD (800 m in / 5 km out) alrededor de Bogotá 4.60971, -74.08175:
+--   ~800 m norte ≈ lat 4.61690; ~5 km norte ≈ lat 4.65463; misma lon.
+--   denuncias_cerca(4.60971, -74.08175, 2000) debe devolver solo la de 800 m.
+
+-- EXPLAIN (ANALYZE, BUFFERS)
+-- SELECT *
+-- FROM public.denuncias_cerca(4.60971, -74.08175, 2000);

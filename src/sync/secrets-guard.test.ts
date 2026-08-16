@@ -22,6 +22,9 @@ describe("secretos HU-004", () => {
       "src/components/sync/TurnstileWidget.tsx",
       "src/sync/drain-queue.ts",
       "src/app/page.tsx",
+      "src/components/mapa/CercaDeMiControl.tsx",
+      "src/components/mapa/MapaExplorer.tsx",
+      "src/mapa/fetch-denuncias-cerca.ts",
     ];
     for (const file of clientFiles) {
       const text = read(file);
@@ -31,6 +34,12 @@ describe("secretos HU-004", () => {
     const server = read("src/lib/supabase/anon-server.ts");
     expect(server).toMatch(/NEXT_PUBLIC_SUPABASE_ANON_KEY/);
     expect(server).not.toMatch(/SERVICE_ROLE/);
+    const cercaRoute = read("src/app/api/denuncias/cerca/route.ts");
+    expect(cercaRoute).toMatch(/createAnonServerClient/);
+    expect(cercaRoute).not.toMatch(/SERVICE_ROLE/);
+    const rpc = read("src/mapa/rpc-denuncias-cerca.ts");
+    expect(rpc).toMatch(/\.rpc\(/);
+    expect(rpc).not.toMatch(/SERVICE_ROLE/);
   });
 
   it("SQL documenta RLS insert anónimo", () => {

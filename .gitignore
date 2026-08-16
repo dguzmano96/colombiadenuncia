@@ -43,6 +43,8 @@ public/swe-worker*
 
 # Vercel y despliegue
 .vercel
+supabase/.temp/
+supabase/.branches/
 
 # Archivos del sistema operativo y editores
 .DS_Store

@@ -51,6 +51,8 @@ jobs:
       # CLI fijada a 2.114.0. --db-url evita supabase link y tokens de Management API.
       # --yes (flag global de la CLI) evita prompts en CI. npx --yes evita el prompt de npm.
       # No imprimir SUPABASE_DB_URL (contiene credenciales de Postgres).
+      # Secret = Session pooler IPv4: host aws-*.pooler.supabase.com puerto 5432 (Connect → Session).
+      # NUNCA Direct db.*.supabase.co (Actions resuelve IPv6 → ECONNREFUSED) ni Transaction 6543 (DDL).
       - name: Apply Supabase migrations
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

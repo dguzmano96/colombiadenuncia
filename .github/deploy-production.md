@@ -26,7 +26,7 @@ Nombres exactos:
 
 | Secret | Uso |
 | --- | --- |
-| `SUPABASE_DB_URL` | Connection string de Postgres para migraciones |
+| `SUPABASE_DB_URL` | URI **Session pooler** (IPv4, puerto `5432`). Nunca Direct ni Transaction. |
 | `VERCEL_TOKEN` | Token de API de Vercel |
 | `VERCEL_ORG_ID` | ID de equipo/cuenta de Vercel |
 | `VERCEL_PROJECT_ID` | ID del proyecto de Vercel |
@@ -37,15 +37,34 @@ Nunca subas estos valores al repo (`.env`, YAML, commits).
 
 Es una URI de Postgres (`postgresql://…` o `postgres://…`), **no** la anon key ni la service role key.
 
-1. En el dashboard de Supabase: **Project Settings → Database → Connection string**.
-2. Elige un modo **compatible con migraciones (DDL)**:
-   - **Direct** (puerto `5432` hacia `db.<ref>.supabase.co`), o
-   - **Session pooler** (también puerto `5432` en el host `pooler`).
-3. **No uses transaction pooler** (suele ser puerto `6543` / modo transaction de PgBouncer): puede fallar con migraciones.
-4. Sustituye la contraseña del rol `postgres` (Database password). Si la contraseña tiene caracteres especiales, **percent-encódala** en la URI (requisito de `supabase db push --db-url`).
-5. Crea el secret `SUPABASE_DB_URL` en GitHub con esa URI completa.
+Este workflow corre en **GitHub-hosted runners** (`ubuntu-latest`). Esos runners resuelven el host Direct (`db.<ref>.supabase.co`) a **IPv6**. El endpoint Direct de Supabase no acepta/enruta esa conexión IPv6 desde Actions (`ECONNREFUSED` en `:5432`, a menudo un AAAA como `2600:…`). El **Session pooler** (Supavisor) es IPv4 en todos los planes y sí funciona desde Actions. Por eso `SUPABASE_DB_URL` **debe** ser Session pooler, **nunca** Direct.
 
-No uses JWT `anon` / `service_role` como URL. El workflow no hace `supabase link` ni necesita `SUPABASE_ACCESS_TOKEN`.
+Pasos (copia la URI; no inventes el host):
+
+1. En el dashboard del proyecto: botón **Connect** (arriba).
+2. Pestaña / método **Session** (Session pooler). **No** elijas Direct ni Transaction.
+3. Copia la URI. Comprueba:
+   - Host `aws-*.pooler.supabase.com` (este proyecto, región `ca-central-1`: `aws-0-ca-central-1.pooler.supabase.com`).
+   - Puerto **`5432`** (session).
+   - Usuario `postgres.<project-ref>` (ejemplo: `postgres.uscyiuoqlqvhrfjwixfr`).
+4. Sustituye `[YOUR-PASSWORD]` por la database password del rol `postgres`. Si tiene caracteres especiales, **percent-encódala** (requisito de `supabase db push --db-url`).
+5. En GitHub: **Settings → Secrets and variables → Actions** → actualiza (o crea) `SUPABASE_DB_URL` con esa URI completa.
+
+Formato de ejemplo (placeholder; **nunca** pegues la password real aquí ni en el YAML):
+
+```
+postgresql://postgres.uscyiuoqlqvhrfjwixfr:[YOUR-PASSWORD]@aws-0-ca-central-1.pooler.supabase.com:5432/postgres
+```
+
+**Prohibido para este workflow:**
+
+- **Direct** `db.*.supabase.co:5432` (IPv6 → `ECONNREFUSED` desde GitHub Actions).
+- **Transaction pooler** puerto `6543` (PgBouncer/Supavisor transaction): no sirve para migraciones DDL (`db push`).
+- JWT `anon` / `service_role` como URL.
+
+El workflow no hace `supabase link` ni necesita `SUPABASE_ACCESS_TOKEN`.
+
+Si Session pooler sigue fallando, revisa Network Restrictions / Network Bans en el dashboard (la IP del runner de Actions debe poder salir a `*.pooler.supabase.com:5432`). No vuelvas a Direct para “arreglarlo”.
 
 Comando que ejecuta CI (versión fijada):
 
@@ -86,12 +105,12 @@ El job es secuencial. `vercel deploy` solo corre si tests, lint, build y `db pus
 1. GitHub → **Actions → Deploy production → Run workflow** (`workflow_dispatch`).
 2. Elige `main` si el selector lo pide.
 3. Abre la corrida y revisa cada paso. Los secretos de GitHub se enmascaran; no actives debug (`ACTIONS_STEP_DEBUG`, `--debug` de las CLIs) salvo que sepas que la salida puede incluir URLs con password.
-4. Si `db push` falla, **no** habrá deploy. Corrige migraciones o la URI y vuelve a lanzar.
+4. Si `db push` falla, **no** habrá deploy. Si el error es `ECONNREFUSED` / IPv6 hacia `db.*.supabase.co`, el secret sigue en Direct: cámbialo a Session pooler (`aws-*.pooler.supabase.com:5432`) y relanza. Si el fallo es de SQL, corrige migraciones.
 5. Si el deploy de Vercel falla, las migraciones **ya aplicadas no se revierten**. No relances a ciegas: revisa el estado del esquema y el dashboard de Vercel.
 
 ## Rotar o eliminar secretos
 
-1. **Supabase:** rota la database password en el dashboard, actualiza `SUPABASE_DB_URL` en GitHub (URI nueva, password percent-encoded). La URI anterior deja de servir.
+1. **Supabase:** rota la database password en el dashboard, vuelve a copiar **Connect → Session** y actualiza `SUPABASE_DB_URL` en GitHub (misma URI Session, password percent-encoded). No sustituyas por Direct. La URI anterior deja de servir.
 2. **Vercel:** revoca el token en Account Tokens, crea otro, actualiza `VERCEL_TOKEN`. Los IDs de org/proyecto no son credenciales de login, pero trátalos como secretos de CI.
 3. Para **eliminar** un secret: Settings → Actions secrets → Delete. El workflow fallará hasta que vuelvas a crearlo.
 4. Tras una filtración, rota en el proveedor **primero** y luego actualiza GitHub. Revisa Actions logs de la ventana expuesta.

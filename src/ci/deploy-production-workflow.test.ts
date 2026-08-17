@@ -92,8 +92,26 @@ describe("workflow deploy-production", () => {
     expect(guide).toMatch(/migraciones/);
     expect(guide).toMatch(/workflow_dispatch/);
     expect(guide).toMatch(/rotar/i);
-    expect(guide).not.toMatch(/postgres(ql)?:\/\/[^\s]+:[^\s]+@/i);
+    expect(guide).not.toMatch(/postgres(?:ql)?:\/\/[^\s]+:(?!\[YOUR-PASSWORD\])[^\s]+@/i);
     expect(guide).not.toMatch(/vcp_[A-Za-z0-9]{8,}/);
     expect(guide).not.toMatch(/eyJ[A-Za-z0-9_-]{20,}\./);
+  });
+
+  it("exige Session pooler IPv4 porque Actions resuelve Direct a IPv6", () => {
+    expect(guide).toMatch(/Session pooler/i);
+    expect(guide).toMatch(/pooler/i);
+    expect(guide).toMatch(/IPv6/);
+    expect(guide).toMatch(/Actions/);
+    expect(guide).toMatch(/aws-\*\.pooler\.supabase\.com/);
+    expect(guide).toMatch(/aws-0-ca-central-1\.pooler\.supabase\.com:5432/);
+    expect(guide).toMatch(/\[YOUR-PASSWORD\]/);
+    expect(guide).toMatch(/Connect/);
+    expect(guide).toMatch(/6543/);
+    expect(guide).toMatch(/db\.\*\.supabase\.co/);
+    expect(yaml).toMatch(/Session pooler/);
+    expect(yaml).toMatch(/pooler\.supabase\.com/);
+    expect(yaml).toMatch(/IPv6/);
+    expect(yaml).toMatch(/6543/);
+    expect(yaml).not.toMatch(/postgres(?:ql)?:\/\/[^\s]+:[^\s]+@/i);
   });
 });

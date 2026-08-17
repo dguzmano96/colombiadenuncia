@@ -28,7 +28,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # 22 LTS: jsdom trae undici 8, que llama markAsUncloneable (API de Node 22+).
+          # En 20 los workers de Vitest no arrancan (webidl.util.markAsUncloneable).
+          node-version: "22"
           cache: npm
 
       - name: Install dependencies

@@ -45,7 +45,8 @@ describe("workflow deploy-production", () => {
       expect(idx, `falta o desordenado: ${marker}`).toBeGreaterThan(last);
       last = idx;
     }
-    expect(yaml).toMatch(/node-version:\s*"20"/);
+    expect(yaml).toMatch(/node-version:\s*"22"/);
+    expect(yaml).not.toMatch(/node-version:\s*"20"/);
     expect(yaml).toMatch(/cache:\s*npm/);
     expect(yaml).toMatch(/--db-url "\$SUPABASE_DB_URL"/);
   });

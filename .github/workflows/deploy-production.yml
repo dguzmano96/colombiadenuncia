@@ -1,0 +1,65 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un solo deploy de producción a la vez. Las corridas pendientes se cancelan;
+# la que ya está en curso no se interrumpe (evita migrar y abortar a medias).
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      # Compilación de verificación. No inyectar secretos ni variables de runtime
+      # de Vercel: esas viven en el proyecto de Vercel. NEXT_PUBLIC_* de producción
+      # las aplica Vercel al construir el deploy.
+      - name: Build
+        run: npm run build
+
+      # CLI fijada a 2.114.0. --db-url evita supabase link y tokens de Management API.
+      # --yes (flag global de la CLI) evita prompts en CI. npx --yes evita el prompt de npm.
+      # No imprimir SUPABASE_DB_URL (contiene credenciales de Postgres).
+      - name: Apply Supabase migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npx --yes supabase@2.114.0 db push --yes --db-url "$SUPABASE_DB_URL"
+
+      # Equivalente seguro a `npx vercel@59.1.3 deploy --prod --token … --yes`.
+      # El token va en VERCEL_TOKEN (no en argv) para no exponerlo en process list.
+      # VERCEL_ORG_ID y VERCEL_PROJECT_ID identifican el proyecto sin `vercel link`.
+      - name: Deploy to Vercel production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx --yes vercel@59.1.3 deploy --prod --yes

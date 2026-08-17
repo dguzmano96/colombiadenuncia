@@ -31,7 +31,7 @@ describe("contrato SQL de HU-012", () => {
     expect(migration).toContain("denuncias_publicadas_sin_zona");
     expect(migration).toContain("grant select on public.denuncias_publicas_zonales to anon");
     expect(migration).toContain(
-      "revoke all on view public.denuncias_publicadas_sin_zona from public, anon, authenticated",
+      "revoke all on table public.denuncias_publicadas_sin_zona from public, anon, authenticated",
     );
   });
 });

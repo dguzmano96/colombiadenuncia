@@ -1,6 +1,6 @@
 export const TABLA_ZONAL_API_PATH = "/api/denuncias/tabla-zonal";
 export const ZONAS_API_PATH = "/api/denuncias/zonas";
-export const TABLA_ZONAL_PAGE_SIZE = 25;
+export const TABLA_ZONAL_PAGE_SIZE = 10;
 
 export type FilaTablaZonal = {
   departamento: string;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CAPTURA_PATH, MAPA_PATH } from "@/pwa/precache";
 
-const TABLA_ZONAL_PATH = "/tabla-zonal";
+const TABLA_ZONAL_PATH = "/mapa#tabla-zonal";
 
 export function AppNav() {
   return (

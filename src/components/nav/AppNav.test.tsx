@@ -11,5 +11,8 @@ describe("AppNav", () => {
     expect(screen.getByRole("link", { name: "Mapa" }).getAttribute("href")).toBe(
       "/mapa",
     );
+    expect(
+      screen.getByRole("link", { name: "Tabla zonal" }).getAttribute("href"),
+    ).toBe("/mapa#tabla-zonal");
   });
 });

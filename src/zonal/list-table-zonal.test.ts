@@ -53,12 +53,12 @@ describe("listTablaZonal", () => {
     });
     expect(rows.eq).toHaveBeenCalledWith("departamento", "ANTIOQUIA");
     expect(rows.eq).toHaveBeenCalledWith("municipio", "MEDELLÍN");
-    expect(rows.range).toHaveBeenCalledWith(25, 49);
+    expect(rows.range).toHaveBeenCalledWith(10, 19);
     expect(result).toEqual({
       filas: [{ departamento: "ANTIOQUIA", municipio: "MEDELLÍN", cantidad: 2 }],
       meta: {
         page: 2,
-        pageSize: 25,
+        pageSize: 10,
         total: 51,
         hasMore: true,
         departamentos: ["ANTIOQUIA"],

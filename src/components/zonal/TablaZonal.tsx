@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { PublicMapZoneSelection } from "@/components/mapa/PublicMap";
+import { DEPARTAMENTOS_COLOMBIA } from "@/zonal/departamentos-colombia";
 import {
   fetchTablaZonal,
   fetchZonaBounds,
@@ -11,6 +12,7 @@ import {
 } from "@/zonal/table-zonal";
 
 type TablaStatus =
+  | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ready"; filas: FilaTablaZonal[]; meta: MetaTablaZonal }
   | { kind: "error"; message: string };
@@ -21,9 +23,9 @@ export type TablaZonalProps = {
 
 export function TablaZonal({ onSelectZona }: TablaZonalProps = {}) {
   const [consulta, setConsulta] = useState<ConsultaTablaZonal>({ page: 1 });
-  const [status, setStatus] = useState<TablaStatus>({ kind: "loading" });
+  const [status, setStatus] = useState<TablaStatus>({ kind: "idle" });
   const [opciones, setOpciones] = useState({
-    departamentos: [] as string[],
+    departamentos: [...DEPARTAMENTOS_COLOMBIA],
     municipios: [] as string[],
   });
   const [reload, setReload] = useState(0);
@@ -34,15 +36,21 @@ export function TablaZonal({ onSelectZona }: TablaZonalProps = {}) {
   const [zonaError, setZonaError] = useState<string | null>(null);
 
   useEffect(() => {
+    const hasSelection = Boolean(consulta.departamento || consulta.municipio);
+    if (!hasSelection) {
+      setStatus({ kind: "idle" });
+      return;
+    }
+
     let cancelled = false;
     setStatus({ kind: "loading" });
     void fetchTablaZonal(consulta).then((result) => {
       if (cancelled) return;
       if (result.ok) {
-        setOpciones({
-          departamentos: result.meta.departamentos,
+        setOpciones((current) => ({
+          departamentos: current.departamentos,
           municipios: result.meta.municipios,
-        });
+        }));
         setStatus({ kind: "ready", filas: result.filas, meta: result.meta });
       } else {
         setStatus({ kind: "error", message: result.error });
@@ -133,7 +141,7 @@ export function TablaZonal({ onSelectZona }: TablaZonalProps = {}) {
             value={consulta.departamento ?? ""}
             onChange={(event) => cambiarDepartamento(event.target.value)}
           >
-            <option value="">Todos los departamentos</option>
+            <option value="">Selecciona un departamento</option>
             {opciones.departamentos.map((departamento) => (
               <option key={departamento} value={departamento}>
                 {departamento}
@@ -171,6 +179,12 @@ export function TablaZonal({ onSelectZona }: TablaZonalProps = {}) {
           Limpiar filtros
         </button>
       </div>
+
+      {status.kind === "idle" && (
+        <p role="status" className="rounded-md border border-dashed border-stone-300 p-4">
+          Selecciona un departamento para consultar la tabla zonal.
+        </p>
+      )}
 
       {status.kind === "loading" && (
         <p role="status" className="rounded-md border border-dashed border-stone-300 p-4">

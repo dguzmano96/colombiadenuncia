@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEPARTAMENTOS_COLOMBIA } from "./departamentos-colombia";
 import {
   fetchTablaZonal,
   fetchZonaBounds,
   isFilaTablaZonal,
+  TABLA_ZONAL_PAGE_SIZE,
 } from "./table-zonal";
 
 const meta = {
   page: 1,
-  pageSize: 25,
+  pageSize: 10,
   total: 1,
   hasMore: false,
   departamentos: ["ANTIOQUIA"],
@@ -15,6 +17,13 @@ const meta = {
 };
 
 describe("tabla zonal", () => {
+  it("pagina de a 10 filas y lista departamentos DANE sin consultar la API", () => {
+    expect(TABLA_ZONAL_PAGE_SIZE).toBe(10);
+    expect(DEPARTAMENTOS_COLOMBIA).toContain("ANTIOQUIA");
+    expect(DEPARTAMENTOS_COLOMBIA).toContain("BOGOTÁ, D.C.");
+    expect(DEPARTAMENTOS_COLOMBIA).toHaveLength(33);
+  });
+
   it("acepta únicamente filas públicas estructuradas", () => {
     expect(isFilaTablaZonal({ departamento: "ANTIOQUIA", municipio: "MEDELLÍN", cantidad: 2 })).toBe(
       true,

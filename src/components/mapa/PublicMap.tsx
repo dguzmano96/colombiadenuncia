@@ -54,6 +54,22 @@ type LeavesState = {
   canZoom: boolean;
 };
 
+export type PublicMapZoneSelection =
+  | { kind: "idle" }
+  | { kind: "loading"; departamento: string; municipio?: string }
+  | {
+      kind: "ready";
+      departamento: string;
+      municipio?: string;
+      bounds: [[number, number], [number, number]];
+    }
+  | {
+      kind: "error";
+      departamento: string;
+      municipio?: string;
+      message: string;
+    };
+
 function leafletBbox(map: L.Map): LngLatBBox {
   const bounds = map.getBounds();
   return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
@@ -76,6 +92,7 @@ export type PublicMapProps = {
   onAskPin?: () => void;
   onVeedorPoint?: (point: GeoPoint) => void;
   selectedCategorias?: readonly Categoria[];
+  selectedZone?: PublicMapZoneSelection;
 };
 
 export function PublicMap({
@@ -85,6 +102,7 @@ export function PublicMap({
   onAskPin,
   onVeedorPoint,
   selectedCategorias = [],
+  selectedZone = { kind: "idle" },
 }: PublicMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -281,6 +299,18 @@ export function PublicMap({
     }
   }, [origin]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || selectedZone.kind === "idle" || selectedZone.kind === "loading") {
+      return;
+    }
+    if (selectedZone.kind === "error") return;
+    map.fitBounds(L.latLngBounds(selectedZone.bounds), {
+      padding: [24, 24],
+      maxZoom: selectedZone.municipio ? 12 : 9,
+    });
+  }, [selectedZone]);
+
   const emptyFeed =
     status.kind === "ready" && status.collection.features.length === 0;
   const emptyFilter =
@@ -299,6 +329,11 @@ export function PublicMap({
       {status.kind === "error" ? (
         <p role="alert" className="rounded-md bg-red-100 px-3 py-2 text-sm">
           Error de carga. No se muestran puntos.
+        </p>
+      ) : null}
+      {selectedZone.kind === "error" ? (
+        <p role="alert" className="rounded-md bg-red-100 px-3 py-2 text-sm">
+          {selectedZone.message}
         </p>
       ) : null}
       {emptyFeed ? (

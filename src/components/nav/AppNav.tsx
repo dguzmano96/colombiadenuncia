@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CAPTURA_PATH, MAPA_PATH } from "@/pwa/precache";
 
+const TABLA_ZONAL_PATH = "/tabla-zonal";
+
 export function AppNav() {
   return (
     <nav
@@ -12,6 +14,12 @@ export function AppNav() {
       </Link>
       <Link className="font-medium text-amber-800 underline" href={MAPA_PATH}>
         Mapa
+      </Link>
+      <Link
+        className="font-medium text-amber-800 underline"
+        href={TABLA_ZONAL_PATH}
+      >
+        Tabla zonal
       </Link>
     </nav>
   );

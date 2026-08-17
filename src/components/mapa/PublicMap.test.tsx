@@ -2,6 +2,22 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 const fetchPublicGeojson = vi.hoisted(() => vi.fn());
+const mapMock = vi.hoisted(() => ({
+  setView: vi.fn(),
+  fitBounds: vi.fn(),
+  on: vi.fn(),
+  invalidateSize: vi.fn(),
+  remove: vi.fn(),
+  getCenter: () => ({ lat: 4.6, lng: -74 }),
+  getZoom: () => 6,
+  getMaxZoom: () => 19,
+  getBounds: () => ({
+    getWest: () => -80,
+    getSouth: () => -5,
+    getEast: () => -66,
+    getNorth: () => 13,
+  }),
+}));
 
 vi.mock("@/mapa/fetch-public-geojson", () => ({
   CACHE_BANNER: "datos de caché",
@@ -10,27 +26,11 @@ vi.mock("@/mapa/fetch-public-geojson", () => ({
 
 vi.mock("leaflet", () => {
   const layer = { addTo: vi.fn(), clearLayers: vi.fn() };
-  const map = {
-    setView: vi.fn(),
-    fitBounds: vi.fn(),
-    on: vi.fn(),
-    invalidateSize: vi.fn(),
-    remove: vi.fn(),
-    getCenter: () => ({ lat: 4.6, lng: -74 }),
-    getZoom: () => 6,
-    getMaxZoom: () => 19,
-    getBounds: () => ({
-      getWest: () => -80,
-      getSouth: () => -5,
-      getEast: () => -66,
-      getNorth: () => 13,
-    }),
-  };
   return {
     default: {
-      map: vi.fn(() => map),
+      map: vi.fn(() => mapMock),
       tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
-      latLngBounds: vi.fn(),
+      latLngBounds: vi.fn((bounds) => bounds),
       layerGroup: vi.fn(() => ({ addTo: vi.fn(() => layer) })),
       circleMarker: vi.fn(() => ({ on: vi.fn(() => ({ addTo: vi.fn() })) })),
       marker: vi.fn(() => ({ on: vi.fn(), addTo: vi.fn() })),
@@ -130,5 +130,88 @@ describe("PublicMap", () => {
     const mapEl = screen.getByRole("application");
     expect(mapEl.getAttribute("data-attribution")).toBe("OpenStreetMap");
     expect(mapEl.getAttribute("data-leaflet")).toBe("1.9.4");
+  });
+
+  it("centra el mapa con fitBounds y maxZoom 12 para municipio seleccionado", async () => {
+    fetchPublicGeojson.mockResolvedValue({
+      ok: true,
+      fromCache: false,
+      collection: { type: "FeatureCollection", features: [] },
+    });
+    mapMock.fitBounds.mockClear();
+    const { PublicMap } = await import("./PublicMap");
+    render(
+      <PublicMap
+        selectedZone={{
+          kind: "ready",
+          departamento: "ANTIOQUIA",
+          municipio: "MEDELLÍN",
+          bounds: [
+            [6.1, -75.7],
+            [6.4, -75.5],
+          ],
+        }}
+      />,
+    );
+    expect(mapMock.fitBounds).toHaveBeenCalledWith(
+      [
+        [6.1, -75.7],
+        [6.4, -75.5],
+      ],
+      { padding: [24, 24], maxZoom: 12 },
+    );
+  });
+
+  it("centra el mapa con fitBounds y maxZoom 9 para departamento sin municipio", async () => {
+    fetchPublicGeojson.mockResolvedValue({
+      ok: true,
+      fromCache: false,
+      collection: { type: "FeatureCollection", features: [] },
+    });
+    mapMock.fitBounds.mockClear();
+    const { PublicMap } = await import("./PublicMap");
+    render(
+      <PublicMap
+        selectedZone={{
+          kind: "ready",
+          departamento: "ANTIOQUIA",
+          bounds: [
+            [5.4, -77.1],
+            [8.9, -73.8],
+          ],
+        }}
+      />,
+    );
+    expect(mapMock.fitBounds).toHaveBeenCalledWith(
+      [
+        [5.4, -77.1],
+        [8.9, -73.8],
+      ],
+      { padding: [24, 24], maxZoom: 9 },
+    );
+  });
+
+  it("muestra alerta controlada ante error de zona sin alterar mapa", async () => {
+    fetchPublicGeojson.mockResolvedValue({
+      ok: true,
+      fromCache: false,
+      collection: { type: "FeatureCollection", features: [] },
+    });
+    mapMock.fitBounds.mockClear();
+    const { PublicMap } = await import("./PublicMap");
+    render(
+      <PublicMap
+        selectedZone={{
+          kind: "error",
+          departamento: "ANTIOQUIA",
+          municipio: "DESCONOCIDO",
+          message: "Geometría no disponible para la zona seleccionada.",
+        }}
+      />,
+    );
+    expect(
+      await screen.findByText("Geometría no disponible para la zona seleccionada."),
+    ).toBeTruthy();
+    expect(screen.getByRole("application")).toBeTruthy();
   });
 });

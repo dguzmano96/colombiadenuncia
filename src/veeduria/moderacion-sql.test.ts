@@ -74,12 +74,13 @@ describe("contrato SQL moderación Studio", () => {
     expect(sql).not.toMatch(/grant select on [\s\S]*denuncias_cuarentena/i);
   });
 
-  it("overview documenta vista/filtro cuarentena para el operador", () => {
-    const overview = read("02-arquitectura/overview.md");
-    expect(overview).toMatch(/denuncias_cuarentena/);
-    expect(overview).toMatch(/estado = 'cuarentena'/);
-    expect(overview).toMatch(/oculta_moderacion/);
-    expect(overview).toMatch(/moderado_nota/);
+  it("SQL documenta vista/filtro cuarentena para el operador", () => {
+    // 02-arquitectura/ está en .gitignore: no existe en el checkout de Actions.
+    expect(sql).toMatch(/comment on view public\.denuncias_cuarentena/i);
+    expect(sql).toMatch(/cola de moderación Studio/);
+    expect(sql).toMatch(/estado=cuarentena/);
+    expect(sql).toMatch(/oculta_moderacion/);
+    expect(sql).toMatch(/moderado_nota/);
   });
 
   it("INSERT atestiguos/reportes sigue siendo RPC (grant execute anon)", () => {

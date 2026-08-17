@@ -58,12 +58,14 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: npx --yes supabase@2.114.0 db push --yes --db-url "$SUPABASE_DB_URL"
 
-      # Equivalente seguro a `npx vercel@59.1.3 deploy --prod --token … --yes`.
-      # El token va en VERCEL_TOKEN (no en argv) para no exponerlo en process list.
-      # VERCEL_ORG_ID y VERCEL_PROJECT_ID identifican el proyecto sin `vercel link`.
+      # Actions no tiene ~/.local/share/com.vercel.cli. El CLI 59 exige --token
+      # en argv cuando no hay auth file; VERCEL_TOKEN solo en env no alcanza.
+      # El valor sale del secret vía env (GitHub lo enmascara). Nunca interpolar
+      # secrets.VERCEL_TOKEN en el YAML. ORG/PROJECT ID evitan `vercel link`.
+      # Si VERCEL_TOKEN falta o está vacío: "No existing credentials found".
       - name: Deploy to Vercel production
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: npx --yes vercel@59.1.3 deploy --prod --yes
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@59.1.3 deploy --prod --yes --token "$VERCEL_TOKEN"

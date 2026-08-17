@@ -76,15 +76,23 @@ npx --yes supabase@2.114.0 db push --yes --db-url "$SUPABASE_DB_URL"
 
 ### `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
-1. **Token:** [Vercel Account Tokens](https://vercel.com/account/tokens) → crear un token con alcance mínimo sobre el equipo del proyecto. Caducidad corta y rotación periódica. Guardar como secret `VERCEL_TOKEN`.
+Los tres secrets **tienen que existir** en GitHub (Settings → Secrets and variables → Actions). Si `VERCEL_TOKEN` no está creado o está vacío, el YAML no autentica: el CLI responde `No existing credentials found` (a menudo con `Run vercel deploy --temporary`). Corregir el workflow no sustituye crear el secret.
+
+1. **Token:** [Vercel Account Tokens](https://vercel.com/account/tokens) → crear un token con alcance mínimo sobre el equipo del proyecto. Caducidad corta y rotación periódica. Guardar el valor como secret `VERCEL_TOKEN`. Sin este secret, el paso de deploy falla con el error de credenciales de arriba.
 2. **IDs:** en una máquina ya autenticada (`vercel login` **local**, no se transfiere a Actions), en la raíz del repo:
 
    ```bash
    vercel link
    ```
 
-   Lee `.vercel/project.json` (está en `.gitignore`): `orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`. También aparecen en el dashboard del proyecto (Settings).
-3. El workflow autentica con la variable de entorno `VERCEL_TOKEN` (recomendación oficial de la CLI para CI) en lugar de `--token` en la línea de comandos, y usa `npx --yes vercel@59.1.3 deploy --prod --yes`.
+   Lee `.vercel/project.json` (está en `.gitignore`): `orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`. También aparecen en el dashboard del proyecto (Settings). Ambos IDs son secrets obligatorios junto al token.
+3. El runner de Actions no tiene `~/.local/share/com.vercel.cli`. El CLI 59 espera `--token` en argv en ese contexto; solo exportar `VERCEL_TOKEN` no basta. El workflow pasa el secret a env (GitHub lo enmascara) y lo reenvía así:
+
+   ```bash
+   npx --yes vercel@59.1.3 deploy --prod --yes --token "$VERCEL_TOKEN"
+   ```
+
+   No interpolar `${{ secrets.VERCEL_TOKEN }}` en la línea de comandos.
 
 ## Rama de producción en Vercel
 
@@ -106,7 +114,7 @@ El job es secuencial. `vercel deploy` solo corre si tests, lint, build y `db pus
 2. Elige `main` si el selector lo pide.
 3. Abre la corrida y revisa cada paso. Los secretos de GitHub se enmascaran; no actives debug (`ACTIONS_STEP_DEBUG`, `--debug` de las CLIs) salvo que sepas que la salida puede incluir URLs con password.
 4. Si `db push` falla, **no** habrá deploy. Si el error es `ECONNREFUSED` / IPv6 hacia `db.*.supabase.co`, el secret sigue en Direct: cámbialo a Session pooler (`aws-*.pooler.supabase.com:5432`) y relanza. Si el fallo es de SQL, corrige migraciones.
-5. Si el deploy de Vercel falla, las migraciones **ya aplicadas no se revierten**. No relances a ciegas: revisa el estado del esquema y el dashboard de Vercel.
+5. Si el deploy de Vercel falla, las migraciones **ya aplicadas no se revierten**. No relances a ciegas: revisa el estado del esquema y el dashboard de Vercel. Si el error es `No existing credentials found`, el secret `VERCEL_TOKEN` falta, está vacío o no llega al paso: créalo o actualízalo (Account → Tokens) y confirma también `VERCEL_ORG_ID` y `VERCEL_PROJECT_ID`.
 
 ## Rotar o eliminar secretos
 

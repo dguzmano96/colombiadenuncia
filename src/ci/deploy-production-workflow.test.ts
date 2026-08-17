@@ -37,7 +37,7 @@ describe("workflow deploy-production", () => {
       "npm run lint",
       "npm run build",
       "supabase@2.114.0 db push",
-      "vercel@59.1.3 deploy --prod --yes",
+      'vercel@59.1.3 deploy --prod --yes --token "$VERCEL_TOKEN"',
     ];
     let last = -1;
     for (const marker of markers) {
@@ -49,6 +49,9 @@ describe("workflow deploy-production", () => {
     expect(yaml).not.toMatch(/node-version:\s*"20"/);
     expect(yaml).toMatch(/cache:\s*npm/);
     expect(yaml).toMatch(/--db-url "\$SUPABASE_DB_URL"/);
+    expect(yaml).toMatch(
+      /vercel@59\.1\.3 deploy --prod --yes --token "\$VERCEL_TOKEN"/,
+    );
   });
 
   it("no incrusta secretos, service role ni URLs con credenciales", () => {
@@ -88,6 +91,9 @@ describe("workflow deploy-production", () => {
     expect(guide).toMatch(/VERCEL_TOKEN/);
     expect(guide).toMatch(/VERCEL_ORG_ID/);
     expect(guide).toMatch(/VERCEL_PROJECT_ID/);
+    expect(guide).toMatch(/--token "\$VERCEL_TOKEN"/);
+    expect(guide).toMatch(/account\/tokens/);
+    expect(guide).toMatch(/No existing credentials found/);
     expect(guide).toMatch(/main/);
     expect(guide).toMatch(/migraciones/);
     expect(guide).toMatch(/workflow_dispatch/);
